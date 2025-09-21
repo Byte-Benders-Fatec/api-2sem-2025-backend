@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { isoDateToDate } from "../utils/zod.helpers";
-import { ObjectId } from "mongodb";
+import { WithId } from "mongodb";
 
 export const roleSchema = z.enum(["public", "user", "admin"]);
 export const statusSchema = z.enum(["active", "revoked"]);
@@ -43,4 +43,4 @@ export const apiKeySchema = z.object({
 export type ApiKey = z.infer<typeof apiKeySchema>;
 
 /** Documento do Mongo: */
-export type ApiKeyDoc = ApiKey & { _id: ObjectId };
+export type ApiKeyDoc = WithId<ApiKey>;
