@@ -3,7 +3,9 @@ import "dotenv/config";
 import { connectMongo } from "./configs/db.js";
 import { errorHandler } from "./middlewares/error.middleware.js";
 import { corsMiddleware } from "./middlewares/cors.middleware.js";
+import { requireApiKey } from "./middlewares/apiKey.middleware.js";
 import imoveisRoutes from "./routes/imoveis.routes.js";
+import keysRoutes from "./routes/apiKeys.routes.js";
 
 async function main() {
   await connectMongo();
@@ -11,6 +13,9 @@ async function main() {
 
   app.use(corsMiddleware);
   app.use(express.json({ limit: "2mb" }));
+  app.use("/admin/keys", keysRoutes);
+  
+  app.use(requireApiKey);
 
   app.get("/health", (_req, res) => res.json({ ok: true }));
   app.use("/api/imoveis", imoveisRoutes);
