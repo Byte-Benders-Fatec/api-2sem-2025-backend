@@ -1,0 +1,39 @@
+# Dependências
+/node_modules
+
+# Build
+/dist
+/build
+
+# Configurações do ambiente
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Testes/coverage
+/coverage
+/.nyc_output
+
+# Cache
+/.turbo
+/.parcel-cache
+/.next
+.next/
+/.cache
