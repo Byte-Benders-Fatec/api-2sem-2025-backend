@@ -19,7 +19,7 @@ export const geometrySchema = z.object({
 
 const normalizePlusCode = z
   .string()
-  .transform((s) => s.trim().toUpperCase())
+  .transform((s: string) => s.trim().toUpperCase())
   .pipe(z.string().regex(OLC_REGEX, "Invalid global Plus Code"));
 
 const plusCodeSchema = z.union([
@@ -32,6 +32,18 @@ const plusCodeSchema = z.union([
     provider: z.literal("google").optional()
   })
 ]).optional();
+
+/**
+ * Schema estendido para Plus Code com coordenadas
+ */
+const plusCodeWithCoordinates = z.object({
+  global_code: normalizePlusCode,
+  compound_code: z.string().min(4).max(120).optional(),
+  coordinates: z.object({
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180)
+  }).optional()
+}).optional();
 
 export const imovelBaseSchema = z.object({
   type: z.literal("Feature").optional(),
@@ -50,7 +62,7 @@ export const imovelBaseSchema = z.object({
     dat_criaca: z.string().optional(),
     dat_atuali: z.string().optional(),
     cod_cpf: z.string().optional(),
-    plus_code: plusCodeSchema
+    plus_code: plusCodeWithCoordinates
   })
 });
 

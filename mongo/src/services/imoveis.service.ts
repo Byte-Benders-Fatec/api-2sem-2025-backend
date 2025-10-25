@@ -1,7 +1,11 @@
-import { Filter, WithId, Document } from "mongodb";
+import { Filter, WithId, Document, ObjectId } from "mongodb";
 import { getCollection } from "../configs/db.js";
 import { ImovelInput } from "../schemas/imovel.schema.js";
 import { flatten } from "../utils/flatten.js";
+import {
+  calculatePolygonCentroid,
+  isPointInPolygonWithTolerance
+} from "../utils/geometry.js";
 
 const COLLECTION = process.env.MONGODB_COLLECTION_IMOVEIS || "imoveis_rurais";
 
@@ -76,8 +80,8 @@ export async function listImoveisNear(opts: {
 }) {
   const col = getCollection(COLLECTION);
   const limit = Math.max(1, Math.min(opts.limit ?? 200, 1000));
-  const page  = Math.max(1, opts.page ?? 1);
-  const skip  = (page - 1) * limit;
+  const page = Math.max(1, opts.page ?? 1);
+  const skip = (page - 1) * limit;
 
   const baseQuery: Document = {};
   if (opts.municipio) baseQuery["properties.municipio"] = opts.municipio;
@@ -129,8 +133,8 @@ export async function listImoveisInViewport(opts: {
 }) {
   const col = getCollection(COLLECTION);
   const limit = Math.max(1, Math.min(opts.limit ?? 200, 1000));
-  const page  = Math.max(1, opts.page ?? 1);
-  const skip  = (page - 1) * limit;
+  const page = Math.max(1, opts.page ?? 1);
+  const skip = (page - 1) * limit;
 
   // Polígono do viewport: SW->SE->NE->NW->SW
   const { sw, ne } = opts;
@@ -170,3 +174,176 @@ export async function listImoveisInViewport(opts: {
     items
   };
 }
+
+/**
+ * Gera Plus Code para um imóvel e salva direto nas properties
+ * Se latitude/longitude não forem fornecidas, usa o centroide automaticamente
+ * Valida se o ponto está dentro da propriedade
+ * 
+ * @param imovelId - ID do imóvel
+ * @param latitude - Latitude do ponto de referência (opcional, usa centroide se não fornecido)
+ * @param longitude - Longitude do ponto de referência (opcional, usa centroide se não fornecido)
+ * @returns Imóvel atualizado com Plus Code
+ */
+export async function generatePlusCodeForImovel(
+  imovelId: string,
+  latitude?: number,
+  longitude?: number
+): Promise<{
+  imovel: ImovelDoc | null;
+  plusCode: {
+    global_code: string;
+    compound_code?: string;
+    coordinates: { latitude: number; longitude: number };
+  } | null;
+  usedCentroid?: boolean;
+  error?: string;
+  details?: string;
+}> {
+  const col = getCollection(COLLECTION);
+
+  // Verificar se o imóvel existe
+  const imovel = await col.findOne({ _id: new ObjectId(imovelId) });
+  if (!imovel) {
+    return { imovel: null, plusCode: null };
+  }
+
+  // Verificar se o imóvel tem geometria válida
+  const geometry = (imovel as any).geometry;
+  if (!geometry || geometry.type !== "Polygon" || !geometry.coordinates) {
+    return {
+      imovel: null,
+      plusCode: null,
+      error: "Imóvel não possui geometria de polígono válida"
+    };
+  }
+
+  let finalLat: number;
+  let finalLng: number;
+  let usedCentroid = false;
+
+  // Se não forneceu lat/lng, calcular centroide
+  if (latitude === undefined || longitude === undefined) {
+    const centroid = calculatePolygonCentroid(geometry.coordinates);
+
+    if (!centroid) {
+      return {
+        imovel: null,
+        plusCode: null,
+        error: "Não foi possível calcular o centro da propriedade"
+      };
+    }
+
+    finalLat = centroid.latitude;
+    finalLng = centroid.longitude;
+    usedCentroid = true;
+  } else {
+    finalLat = latitude;
+    finalLng = longitude;
+  }
+
+  // VALIDAÇÃO: Verificar se o ponto está dentro da propriedade
+  const isInside = isPointInPolygonWithTolerance(
+    geometry.coordinates,
+    finalLat,
+    finalLng,
+    100 // 100 metros de tolerância
+  );
+
+  if (!isInside) {
+    return {
+      imovel: null,
+      plusCode: null,
+      error: "O ponto escolhido está fora dos limites da propriedade",
+      details: `Coordenadas fornecidas (${finalLat}, ${finalLng}) não estão dentro do polígono do imóvel. Por favor, escolha um ponto dentro dos limites da propriedade.`
+    };
+  }
+
+  // Chamar Google Geocoding API para gerar Plus Code
+  const apiKey = process.env.GOOGLE_GEOCODING_API_KEY;
+  if (!apiKey) {
+    return {
+      imovel: null,
+      plusCode: null,
+      error: "GOOGLE_GEOCODING_API_KEY não configurada"
+    };
+  }
+
+  try {
+    const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+    url.searchParams.set("latlng", `${finalLat},${finalLng}`);
+    url.searchParams.set("key", apiKey);
+
+    const response = await fetch(url.toString());
+    const data: any = await response.json();
+
+    if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+      return {
+        imovel: null,
+        plusCode: null,
+        error: `Erro ao gerar Plus Code: ${data.status}`
+      };
+    }
+
+    // Extrair Plus Code
+    let plusCodeData = null;
+    if (data.plus_code?.global_code) {
+      plusCodeData = {
+        global_code: data.plus_code.global_code,
+        compound_code: data.plus_code.compound_code
+      };
+    } else if (data.results?.[0]?.plus_code?.global_code) {
+      plusCodeData = {
+        global_code: data.results[0].plus_code.global_code,
+        compound_code: data.results[0].plus_code.compound_code
+      };
+    }
+
+    if (!plusCodeData) {
+      return {
+        imovel: null,
+        plusCode: null,
+        error: "Não foi possível gerar Plus Code para estas coordenadas"
+      };
+    }
+
+    // Atualizar imóvel com Plus Code direto nas properties
+    await col.updateOne(
+      { _id: new ObjectId(imovelId) },
+      {
+        $set: {
+          "properties.plus_code": {
+            global_code: plusCodeData.global_code,
+            compound_code: plusCodeData.compound_code,
+            coordinates: {
+              latitude: finalLat,
+              longitude: finalLng
+            }
+          }
+        }
+      }
+    );
+
+    const updatedImovel = await col.findOne({ _id: new ObjectId(imovelId) });
+
+    return {
+      imovel: updatedImovel,
+      plusCode: {
+        global_code: plusCodeData.global_code,
+        compound_code: plusCodeData.compound_code,
+        coordinates: {
+          latitude: finalLat,
+          longitude: finalLng
+        }
+      },
+      usedCentroid
+    };
+  } catch (error) {
+    return {
+      imovel: null,
+      plusCode: null,
+      error: `Erro ao chamar Google API: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
+    };
+  }
+}
+

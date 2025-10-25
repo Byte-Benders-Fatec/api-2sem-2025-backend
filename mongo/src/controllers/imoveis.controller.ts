@@ -97,7 +97,7 @@ export async function listNear(req: Request, res: Response, next: NextFunction) 
     }
 
     // filtros opcionais iguais ao seu list atual
-    const municipio  = req.query.municipio?.toString();
+    const municipio = req.query.municipio?.toString();
     const ind_status = req.query.ind_status?.toString();
     const cod_imovel = req.query.cod_imovel?.toString();
 
@@ -134,7 +134,7 @@ export async function listInViewport(req: Request, res: Response, next: NextFunc
 
     const { sw, ne } = vp;
     const { page, limit } = parsePagination(req.query);
-    const municipio  = req.query.municipio?.toString();
+    const municipio = req.query.municipio?.toString();
     const ind_status = req.query.ind_status?.toString();
     const cod_imovel = req.query.cod_imovel?.toString();
     const projection = parseFieldsToProjection(req.query.fields?.toString());
@@ -145,4 +145,68 @@ export async function listInViewport(req: Request, res: Response, next: NextFunc
     });
     res.json(data);
   } catch (err) { next(err); }
+}
+
+/**
+ * Gera Plus Code para um imóvel
+ * Se latitude/longitude não forem fornecidas, usa o centroide automaticamente
+ */
+export async function generatePlusCode(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { latitude, longitude } = req.body;
+
+    // Se latitude/longitude foram fornecidas, validar
+    let lat: number | undefined = undefined;
+    let lng: number | undefined = undefined;
+
+    if (latitude !== undefined && longitude !== undefined) {
+      lat = Number(latitude);
+      lng = Number(longitude);
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return res.status(400).json({
+          error: "Latitude e longitude devem ser números válidos"
+        });
+      }
+
+      if (lat < -90 || lat > 90) {
+        return res.status(400).json({
+          error: "Latitude deve estar entre -90 e 90"
+        });
+      }
+
+      if (lng < -180 || lng > 180) {
+        return res.status(400).json({
+          error: "Longitude deve estar entre -180 e 180"
+        });
+      }
+    }
+
+    // Chamar service
+    const result = await service.generatePlusCodeForImovel(id, lat, lng);
+
+    // Verificar erro primeiro (pode ser ponto fora, geometria inválida, etc)
+    if (result.error) {
+      return res.status(400).json({
+        error: result.error,
+        details: result.details
+      });
+    }
+
+    // Só depois verificar se imóvel não foi encontrado
+    if (!result.imovel) {
+      return res.status(404).json({ error: "Imóvel não encontrado" });
+    }
+
+    res.status(200).json({
+      message: result.usedCentroid
+          ? "Plus Code gerado no centro da propriedade com sucesso"
+          : "Plus Code gerado com sucesso",
+      plusCode: result.plusCode,
+      usedCentroid: result.usedCentroid
+    });
+  } catch (err) {
+    next(err);
+  }
 }

@@ -14,7 +14,7 @@ async function main() {
   app.use(corsMiddleware);
   app.use(express.json({ limit: "2mb" }));
   app.use("/api/v1/admin/keys", keysRoutes);
-  
+
   app.use(requireApiKey);
 
   app.get("/health", (_req, res) => res.json({ ok: true }));
