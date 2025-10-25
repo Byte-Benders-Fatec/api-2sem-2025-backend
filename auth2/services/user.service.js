@@ -28,13 +28,18 @@ const findById = (id) => {
   });
 };
 
-const create = ({ name, email, system_role_id = null }) => {
+const create = ({ name, email, cpf, system_role_id = null }) => {
   return new Promise(async (resolve, reject) => {
     try {
       // Verifica se o e-mail já existe
-      const [existing] = await queryAsync("SELECT id FROM user WHERE email = ?", [email]);
-      if (existing.length > 0) {
+      const [existingEmail] = await queryAsync("SELECT id FROM user WHERE email = ?", [email]);
+      if (existingEmail.length > 0) {
         return reject(new Error("Já existe um usuário com esse e-mail."));
+      }
+      // Verifica se o CPF já existe
+      const [existingCpf] = await queryAsync("SELECT id FROM user WHERE cpf = ?", [cpf]);
+      if (existingCpf.length > 0) {
+        return reject(new Error("Já existe um usuário com esse CPF."));
       }
 
       let roleId = system_role_id;
@@ -59,8 +64,8 @@ const create = ({ name, email, system_role_id = null }) => {
 
       // Insere o novo usuário
       await queryAsync(
-        "INSERT INTO user (id, name, email, is_active, system_role_id) VALUES (?, ?, ?, ?, ?)",
-        [id, name, email, is_active, roleId]
+        "INSERT INTO user (id, name, email, cpf, is_active, system_role_id) VALUES (?, ?, ?, ?, ?, ?)",
+        [id, name, email, cpf, is_active, roleId]
       );
 
       resolve({ id, name });
@@ -70,13 +75,18 @@ const create = ({ name, email, system_role_id = null }) => {
   });
 };
 
-const update = async (id, { name, email, is_active, system_role_id }) => {
+const update = async (id, { name, email, cpf, is_active, system_role_id }) => {
   return new Promise(async (resolve, reject) => {
     try {
       // Verifica duplicidade de e-mail
-      const [existing] = await queryAsync("SELECT id FROM user WHERE email = ? AND id != ?", [email, id]);
-      if (existing.length > 0) {
+      const [existingEmail] = await queryAsync("SELECT id FROM user WHERE email = ? AND id != ?", [email, id]);
+      if (existingEmail.length > 0) {
         return reject(new Error("Já existe um usuário com esse e-mail."));
+      }
+      // Verifica duplicidade do CPF
+      const [existingCpf] = await queryAsync("SELECT id FROM user WHERE cpf = ? AND id != ?", [cpf, id]);
+      if (existingCpf.length > 0) {
+        return reject(new Error("Já existe um usuário com esse CPF."));
       }
 
       // Se for informado um system_role_id, valida se ele existe
@@ -99,6 +109,11 @@ const update = async (id, { name, email, is_active, system_role_id }) => {
       if (email !== undefined) {
         fields.push("email = ?");
         values.push(email);
+      }
+
+      if (cpf !== undefined) {
+        fields.push("cpf = ?");
+        values.push(cpf);
       }
 
       if (is_active !== undefined) {

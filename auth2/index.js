@@ -14,25 +14,27 @@ const authRoutes = require('./routes/auth.routes');
 const userPhotoRoutes = require("./routes/userphoto.routes");
 
 const app = express();
-const PORT = process.env.API_PORT || 5000;
+const API_PORT = process.env.API_PORT || 5000;
+const API_PREFIX = process.env.API_PREFIX || "/api/v1";
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "2mb" }));
+app.get("/health", (_req, res) => res.json({ ok: true }));
 
-app.use("/actions", actionRoutes);
-app.use("/modules", moduleRoutes);
-app.use("/roles", roleRoutes);
-app.use("/systemroles", systemRoleRoutes);
-app.use("/permissions", permissionRoutes);
-app.use("/users", userRoutes);
-app.use("/documents", documentRoutes);
-app.use('/auth', authRoutes);
-app.use("/userphotos", userPhotoRoutes);
+app.use(`${API_PREFIX}/actions`, actionRoutes);
+app.use(`${API_PREFIX}/modules`, moduleRoutes);
+app.use(`${API_PREFIX}/roles`, roleRoutes);
+app.use(`${API_PREFIX}/systemroles`, systemRoleRoutes);
+app.use(`${API_PREFIX}/permissions`, permissionRoutes);
+app.use(`${API_PREFIX}/users`, userRoutes);
+app.use(`${API_PREFIX}/documents`, documentRoutes);
+app.use(`${API_PREFIX}/auth`, authRoutes);
+app.use(`${API_PREFIX}/userphotos`, userPhotoRoutes);
 
 // Inicializa o Super Admin antes do servidor rodar
 initSuperAdmin()
   .then(() => {
-    app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+    app.listen(API_PORT, () => console.log(`Servidor rodando na porta ${API_PORT}`));
   })
   .catch(err => {
     console.error('Erro ao criar o Super Admin:', err);

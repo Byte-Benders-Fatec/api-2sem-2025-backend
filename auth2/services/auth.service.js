@@ -4,9 +4,9 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { queryAsync } = require('../configs/db');
 const { sendEmail } = require('../utils/sendEmail');
-const { verifyPassword, resetPassword, checkPasswordSetup, setPassword } = require('./userPassword.service'); 
+const { verifyPassword, resetPassword, checkPasswordSetup, setPassword, validatePassword } = require('./userPassword.service'); 
 
-const validTypes = ['login', 'password_reset', 'password_change', 'critical_action'];
+const validTypes = ['login', 'password_reset', 'password_change', 'critical_action', 'registration'];
 
 // Geração segura do código de 6 ou 12 dígitos com crypto
 function generateVerificationCode(double = false) {
@@ -75,7 +75,7 @@ const createTwoFaCode = async (user, type = 'login', minutes = 10) => {
 
     // Variável de ambiente define se token será criado
     // Só usa token em tipos que não são públicos (evita enumeração no reset-password)
-    const useToken = process.env.TWO_FA_WITH_TOKEN === 'true' && type !== 'password_reset';
+    const useToken = process.env.TWO_FA_WITH_TOKEN === 'true' && type !== 'password_reset' && type !== 'registration';
 
     const { code, part1, part2 } = generateVerificationCode(useToken); // Gera código simples ou duplo
     const code_hash = await bcrypt.hash(code, 10);
@@ -114,14 +114,16 @@ const createTwoFaCode = async (user, type = 'login', minutes = 10) => {
         login: 'Código de acesso ao sistema',
         password_reset: 'Recuperação de senha',
         password_change: 'Confirmação de alteração de senha',
-        critical_action: 'Confirmação de ação crítica'
+        critical_action: 'Confirmação de ação crítica',
+        registration: 'Confirme seu cadastro'
       };
 
       const bodyMap = {
         login: `Use o código abaixo para fazer login no sistema.\n\nCódigo: ${part1}\nVálido até: ${formattedExpiration}`,
         password_reset: `Recebemos uma solicitação de recuperação de senha.\n\nCódigo: ${part1}\nVálido até: ${formattedExpiration}`,
         password_change: `Você solicitou a alteração de sua senha.\n\nCódigo: ${part1}\nVálido até: ${formattedExpiration}`,
-        critical_action: `Confirme a ação crítica com o código abaixo.\n\nCódigo: ${part1}\nVálido até: ${formattedExpiration}`
+        critical_action: `Confirme a ação crítica com o código abaixo.\n\nCódigo: ${part1}\nVálido até: ${formattedExpiration}`,
+        registration: `Use o código abaixo para validar seu e-mail e ativar sua conta.\n\nCódigo: ${part1}\nVálido até: ${formattedExpiration}`
       };
 
       await sendEmail({
@@ -145,10 +147,15 @@ const verifyTwoFaCode = async (email, submittedCode, tokenCode = null, type = 'l
     throw new Error(`Tipo de verificação inválido. Tipos permitidos: ${validTypes.join(', ')}`);
   }
 
-  // Busca usuário ativo
-  const [users] = await queryAsync('SELECT * FROM user WHERE email = ? AND is_active = TRUE', [email]);
+  // Busca usuário ativo (ou inativo se for registro)
+  const [users] = await queryAsync('SELECT * FROM user WHERE email = ?', [email]);
   const user = users[0];
   if (!user) throw new Error('Usuário não encontrado ou inativo');
+
+ // Se o tipo NÃO for registro e o usuário estiver inativo.
+  if (type !== 'registration' && !user.is_active) {
+    throw new Error('Usuário não encontrado ou inativo');
+  }
 
   // Busca o código mais recente pendente do tipo correto
   const [codes] = await queryAsync(
@@ -351,6 +358,95 @@ const finalizeChangePassword = async (email, newPassword, currentPassword, submi
   return { result };
 };
 
+const startRegistration = async (name, email, cpf, password) => {
+  if (!name || !email || !cpf || !password) {
+    throw new Error('Nome, e-mail, CPF e senha são obrigatórios');
+  }
+
+  // Validar a complexidade da senha
+  try {
+    validatePassword(password);
+  } catch (error) {
+    throw new Error(`Senha inválida: ${error.message}`);
+  }
+
+  // Verificar unicidade (email e cpf)
+  const [existingUsers] = await queryAsync('SELECT email, cpf FROM user WHERE email = ? OR cpf = ?', [email, cpf]);
+  if (existingUsers.length > 0) {
+    if (existingUsers[0].email === email) {
+      throw new Error('Este e-mail já está em uso.');
+    }
+    if (existingUsers[0].cpf === cpf) {
+      throw new Error('Este CPF já está em uso.');
+    }
+  }
+
+  const defaultRoleId = 3; // Usuário Comum
+
+  // Criar usuário inativo (is_active = false)
+  const userId = uuidv4();
+  const insertSql = `
+    INSERT INTO user (id, name, email, cpf, is_active, system_role_id)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `;
+  await queryAsync(insertSql, [userId, name, email, cpf, false, defaultRoleId]);
+
+  const newUser = { id: userId, email: email, name: name };
+
+  // Salvar a senha para o novo usuário
+  // (Não usamos setPassword() pois ele espera um usuário ATIVO. 
+  // Fazemos a inserção manual, que é o correto para um novo usuário)
+  const passwordId = uuidv4();
+  const hash = await bcrypt.hash(password, 10);
+  const insertPasswordSql = `
+    INSERT INTO user_password (
+      id, user_id, password_hash, is_temp, attempts, max_attempts, locked_until,
+      status, expires_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+  await queryAsync(insertPasswordSql, [
+    passwordId,
+    userId,
+    hash,
+    false,    // is_temp
+    0,        // attempts
+    10,       // max_attempts (padrão do seu setPassword)
+    null,     // locked_until
+    'valid',  // status
+    null      // expires_at
+  ]);
+
+  // Enviar código de verificação
+  const { part1 } = await createTwoFaCode(newUser, 'registration', 15);
+  const code = part1;
+  const disable2FA = process.env.SKIP_2FA === 'true';
+
+  return {
+    message: 'Usuário pré-cadastrado. Código de verificação enviado para o e-mail.',
+    ...(disable2FA ? { code } : {})
+  };
+};
+
+const finalizeRegistration = async (email, submittedCode, tokenCode = null, type = 'registration') => {
+  // 1. Verifica o código usando a função existente
+  // O tokenCode é nulo, pois 'registration' não é do tipo 'double'
+  const verification = await verifyTwoFaCode(email, submittedCode, tokenCode, type);
+
+  if (!verification.success || !verification.user) {
+    throw new Error('Verificação falhou. Código inválido ou expirado.');
+  }
+
+  const user = verification.user;
+
+  // 2. Ativa o usuário no banco de dados
+  await queryAsync('UPDATE user SET is_active = TRUE WHERE id = ?', [user.id]);
+
+  return {
+    success: true,
+    message: 'Usuário cadastrado e ativado com sucesso. Você já pode fazer login.'
+  };
+};
+
 module.exports = {
   pruneOldTwoFaCodes,
   createTwoFaCode,
@@ -361,4 +457,6 @@ module.exports = {
   finalizeResetPassword,
   startChangePassword,
   finalizeChangePassword,
+  startRegistration,
+  finalizeRegistration,
 };

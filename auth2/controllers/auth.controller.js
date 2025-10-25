@@ -123,16 +123,24 @@ const AuthController = {
   },
 
   startChangePassword: async (req, res) => {
-    const { email, new_password, current_password } = req.body;
-  
-    if (!email || !new_password || !current_password) {
-      return res.status(400).json({
-        error: "Erro ao solicitar alteração de senha",
-        details: "E-mail, senha atual e nova senha são obrigatórios"
-      });
-    }
-  
+    const { email, new_password, confirm_password, current_password } = req.body;
+    
     try {
+
+      if (!email || !new_password || !confirm_password || !current_password) {
+        return res.status(400).json({
+          error: "Erro ao solicitar alteração de senha",
+          details: "Todos os campos (e-mail, nova senha, confirmação de senha e senha atual) são obrigatórios."
+        });
+      }
+  
+      if (new_password !== confirm_password) {
+        return res.status(400).json({
+          error: "Erro ao solicitar alteração de senha",
+          details: "As senhas não conferem."
+        });
+      }
+    
       const result = await authService.startChangePassword(email, new_password, current_password);
       return res.status(200).json(result);
     } catch (err) {
@@ -144,16 +152,24 @@ const AuthController = {
   },
 
   ChangePassword: async (req, res) => {
-    const { email, new_password, current_password, code, twofa_password_change_token = null, type = 'password_change' } = req.body;
-  
-    if (!email || !new_password || !current_password || !code) {
-      return res.status(400).json({
-        error: "Erro na alteração de senha",
-        details: "E-mail, senha atual, nova senha e código são obrigatórios"
-      });
-    }
-  
+    const { email, new_password, confirm_password, current_password, code, twofa_password_change_token = null, type = 'password_change' } = req.body;
+
     try {
+
+      if (!email || !new_password || !confirm_password || !current_password || !code) {
+        return res.status(400).json({
+          error: "Erro na alteração de senha",
+          details: "E-mail, senha atual, nova senha, confirmação de senha e código são obrigatórios"
+        });
+      }
+  
+      if (new_password !== confirm_password) {
+        return res.status(400).json({
+          error: "Erro na alteração de senha",
+          details: "As senhas não conferem."
+        });
+      }
+  
       const result = await authService.finalizeChangePassword(email, new_password, current_password, code, twofa_password_change_token, type);
       return res.status(200).json(result);
     } catch (err) {
@@ -170,7 +186,64 @@ const AuthController = {
 
   me: async (req, res) => {
     return res.status(200).json(req.user);
-  }  
+  },
+
+  startRegistration: async (req, res) => {
+    const { name, email, cpf, new_password, confirm_password } = req.body;
+  
+    try {
+      if (!name || !email || !cpf || !new_password || !confirm_password) {
+        return res.status(400).json({
+          error: "Erro ao iniciar cadastro",
+          details: "Todos os campos (nome, e-mail, CPF, senha e confirmação de senha) são obrigatórios."
+        });
+      }
+
+      if (new_password !== confirm_password) {
+        return res.status(400).json({
+          error: "Erro ao iniciar cadastro",
+          details: "As senhas não conferem."
+        });
+      }
+      
+      const result = await authService.startRegistration(name, email, cpf, new_password);
+      return res.status(200).json(result);
+    } catch (err) {
+      if (err.message.includes('e-mail já está em uso') || err.message.includes('CPF já está em uso')) {
+        return res.status(409).json({ 
+          error: "Erro ao iniciar cadastro",
+          details: err.message
+        });
+      }
+      return res.status(500).json({
+        error: "Erro ao iniciar cadastro",
+        details: err.message
+      });
+    }
+  },
+
+  finalizeRegistration: async (req, res) => {
+    const { email, code } = req.body;
+    const type = 'registration';
+  
+    try {
+      if (!email || !code) {
+        return res.status(400).json({
+          error: "Erro ao finalizar cadastro",
+          details: "E-mail e código são obrigatórios."
+        });
+      }
+      
+      const result = await authService.finalizeRegistration(email, code, type);
+      return res.status(200).json(result);
+    } catch (err) {
+      return res.status(400).json({ 
+        error: "Erro ao finalizar cadastro",
+        details: err.message
+      });
+    }
+  },
+
 };
 
 module.exports = AuthController;

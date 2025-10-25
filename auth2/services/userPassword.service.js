@@ -441,7 +441,7 @@ const resetPassword = async (email) => {
   // Envia por e-mail
   await sendEmail({
     to: user.email,
-    subject: "Recuperação de Acesso",
+    subject: "Recuperação de acesso",
     text: `Você solicitou a recuperação de acesso.\n\nSua senha temporária é: ${tempPassword}\n\nEla é válida por 30 minutos. Após o login, será solicitado que você crie uma nova senha.`
   });
 

@@ -18,5 +18,7 @@ router.post('/start-change-password', verifyCodeLimiter, AuthController.startCha
 router.post('/change-password', verifyCodeLimiter, AuthController.ChangePassword);
 router.get('/validate', authMiddleware, AuthController.validate);
 router.get('/me', authMiddleware, AuthController.me);
+router.post('/start-register', verifyCodeLimiter, AuthController.startRegistration);
+router.post('/register', verifyCodeLimiter, AuthController.finalizeRegistration);
 
 module.exports = router;
