@@ -19,7 +19,7 @@ const API_PREFIX = process.env.API_PREFIX || "/api/v1";
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
-app.get("/health", (_req, res) => res.json({ ok: true }));
+app.get("/health", (_req, res) => res.json({ ok: false }));
 
 app.use(`${API_PREFIX}/actions`, actionRoutes);
 app.use(`${API_PREFIX}/modules`, moduleRoutes);
