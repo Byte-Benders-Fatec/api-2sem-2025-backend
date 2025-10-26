@@ -18,10 +18,38 @@ const AuthController = {
     }
   },
 
+  guestLogin: async (req, res) => {
+    try {
+      const result = await authService.guestLogin();
+      return res.status(200).json(result);
+    } catch (err) {
+      return res.status(400).json({
+        error: 'Erro ao acessar como visitante',
+        details: err.message,
+      });
+    }
+  },
+
+  logout: async (req, res) => {
+    try {
+      // Emite um novo token de convidado
+      const result = await authService.guestLogin();
+      return res.status(200).json({
+        message: 'Logout efetuado. Sessão de convidado ativa.',
+        ...result,
+      });
+    } catch (err) {
+      return res.status(400).json({
+        error: 'Erro ao efetuar logout',
+        details: err.message,
+      });
+    }
+  },
+
   checkCode: async (req, res) => {
     const { email, code, type = 'login' } = req.body;
   
-    if (email !== req.userEmail) {
+    if (email !== req.user.email) {
       return res.status(403).json({
         error: "Erro ao verificar o código",
         details: "O e-mail fornecido não corresponde ao token"
@@ -46,7 +74,7 @@ const AuthController = {
   finalizeLogin: async (req, res) => {
     const { email, code, type = 'login' } = req.body;
   
-    if (email !== req.userEmail) {
+    if (email !== req.user.email) {
       return res.status(403).json({
         error: "Erro ao finalizar login",
         details: "O e-mail fornecido não corresponde ao token"
@@ -123,14 +151,16 @@ const AuthController = {
   },
 
   startChangePassword: async (req, res) => {
-    const { email, new_password, confirm_password, current_password } = req.body;
+    
+    const email = req.user.email;
+    const { new_password, confirm_password, current_password } = req.body;
     
     try {
 
-      if (!email || !new_password || !confirm_password || !current_password) {
+      if (!new_password || !confirm_password || !current_password) {
         return res.status(400).json({
           error: "Erro ao solicitar alteração de senha",
-          details: "Todos os campos (e-mail, nova senha, confirmação de senha e senha atual) são obrigatórios."
+          details: "Todos os campos (nova senha, confirmação de senha e senha atual) são obrigatórios."
         });
       }
   
@@ -152,14 +182,16 @@ const AuthController = {
   },
 
   ChangePassword: async (req, res) => {
-    const { email, new_password, confirm_password, current_password, code, twofa_password_change_token = null, type = 'password_change' } = req.body;
+
+    const email = req.user.email;
+    const { new_password, confirm_password, current_password, code, twofa_password_change_token = null, type = 'password_change' } = req.body;
 
     try {
 
-      if (!email || !new_password || !confirm_password || !current_password || !code) {
+      if (!new_password || !confirm_password || !current_password || !code) {
         return res.status(400).json({
           error: "Erro na alteração de senha",
-          details: "E-mail, senha atual, nova senha, confirmação de senha e código são obrigatórios"
+          details: "Senha atual, nova senha, confirmação de senha e código são obrigatórios"
         });
       }
   

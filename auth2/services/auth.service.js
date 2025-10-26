@@ -274,7 +274,8 @@ const finalizeLogin = async (email, submittedCode, tokenCode = null, type = 'log
       name: user.name,
       email: user.email,
       system_role: system_role.name,
-      api_key: system_role.api_key
+      api_key: system_role.api_key,
+      scope: 'access'
     },
     process.env.JWT_SECRET,
     {  expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
@@ -448,6 +449,55 @@ const finalizeRegistration = async (email, submittedCode, tokenCode = null, type
   };
 };
 
+const guestLogin = async () => {
+  const [users] = await queryAsync('SELECT * FROM user WHERE name = ? LIMIT 1', ['Visitante']);
+  let user = users && users[0];
+  if (!user) {
+    const name = 'Visitante';
+    const email = 'visitante@byte.dev.br';
+    const cpf = '00000000000';
+    const is_active = 1;
+
+    const [roles] = await queryAsync('SELECT * FROM system_role WHERE name = ? LIMIT 1', ['Guest']);
+    const role = roles && roles[0];
+    const systemRoleId = role?.id;
+    if (!systemRoleId) {
+      throw new Error('Papel "Guest" não encontrado. Verifique o seed de system_role.');
+    }
+
+    const insertSql = `
+      INSERT INTO user (id, name, email, cpf, is_active, system_role_id)
+      VALUES (UUID(), ?, ?, ?, ?, ?)
+    `;
+    await queryAsync(insertSql, [name, email, cpf, is_active, systemRoleId]);
+
+    const [newUserRows] = await queryAsync(
+      'SELECT * FROM user WHERE name = ? LIMIT 1',
+      ['Visitante']
+    );
+    user = newUserRows && newUserRows[0];
+  }
+
+  const [roles] = await queryAsync('SELECT * FROM system_role WHERE id = ? LIMIT 1', [user.system_role_id]);
+  const system_role = roles[0];
+  if (!system_role) throw new Error('O usuário não possui papel de sistema atribuído');
+
+  const accessToken = jwt.sign(
+    {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      system_role: system_role.name,
+      api_key: system_role.api_key,
+      scope: 'access'
+    },
+    process.env.JWT_SECRET,
+    {  expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
+  );
+
+  return { token: accessToken };
+}
+
 module.exports = {
   pruneOldTwoFaCodes,
   createTwoFaCode,
@@ -460,4 +510,5 @@ module.exports = {
   finalizeChangePassword,
   startRegistration,
   finalizeRegistration,
+  guestLogin,
 };
