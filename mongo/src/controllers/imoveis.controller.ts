@@ -201,12 +201,40 @@ export async function generatePlusCode(req: Request, res: Response, next: NextFu
 
     res.status(200).json({
       message: result.usedCentroid
-          ? "Plus Code gerado no centro da propriedade com sucesso"
-          : "Plus Code gerado com sucesso",
+        ? "Plus Code gerado no centro da propriedade com sucesso"
+        : "Plus Code gerado com sucesso",
       plusCode: result.plusCode,
       usedCentroid: result.usedCentroid
     });
   } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Lista imóveis por CPF do proprietário
+ * Aceita CPF formatado (123.456.789-00) ou não formatado (12345678900)
+ */
+export async function listByCPF(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { cpf } = req.params;
+    const { page, limit } = parsePagination(req.query);
+
+    if (!cpf) {
+      return res.status(400).json({
+        error: "CPF é obrigatório"
+      });
+    }
+
+    const data = await service.listImoveisByCPF(cpf, page, limit);
+    res.json(data);
+  } catch (err) {
+    // Se for erro de validação de CPF, retornar 400
+    if (err instanceof Error && err.message.includes("CPF inválido")) {
+      return res.status(400).json({
+        error: err.message
+      });
+    }
     next(err);
   }
 }

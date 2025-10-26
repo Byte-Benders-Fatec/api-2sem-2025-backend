@@ -6,6 +6,7 @@ const router = Router();
 // Rotas de busca especializadas (devem vir antes de rotas com parâmetros)
 router.get("/viewport", ctrl.listInViewport);
 router.get("/near", ctrl.listNear);
+router.get("/cpf/:cpf", ctrl.listByCPF); // Busca por CPF
 
 // CRUD básico
 router.get("/", ctrl.list);

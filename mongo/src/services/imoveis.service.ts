@@ -11,6 +11,17 @@ const COLLECTION = process.env.MONGODB_COLLECTION_IMOVEIS || "imoveis_rurais";
 
 export type ImovelDoc = WithId<Document>;
 
+/**
+ * Normaliza CPF removendo formatação (pontos, hífens, espaços)
+ * Exemplos: 
+ * - "123.456.789-00" → "12345678900"
+ * - "123 456 789 00" → "12345678900"
+ * - "12345678900" → "12345678900"
+ */
+function normalizeCPF(cpf: string): string {
+  return cpf.replace(/[.\-\s]/g, '');
+}
+
 export async function listImoveis(opts: {
   page: number; limit: number; skip: number;
   municipio?: string; ind_status?: string; cod_imovel?: string;
@@ -345,5 +356,58 @@ export async function generatePlusCodeForImovel(
       error: `Erro ao chamar Google API: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
     };
   }
+}
+
+/**
+ * Lista todos os imóveis de um CPF específico
+ * Aceita CPF formatado ou apenas números
+ * 
+ * @param cpf - CPF do proprietário (com ou sem formatação)
+ * @param page - Página atual (default: 1)
+ * @param limit - Itens por página (default: 50)
+ * @returns Lista paginada de imóveis
+ */
+export async function listImoveisByCPF(
+  cpf: string,
+  page: number = 1,
+  limit: number = 50
+) {
+  const col = getCollection(COLLECTION);
+
+  // Normalizar CPF (remover formatação)
+  const normalizedCPF = normalizeCPF(cpf);
+
+  // Validar se CPF tem 11 dígitos
+  if (normalizedCPF.length !== 11 || !/^\d{11}$/.test(normalizedCPF)) {
+    throw new Error("CPF inválido. Deve conter 11 dígitos numéricos.");
+  }
+
+  // Buscar tanto pelo CPF normalizado quanto pelo formatado
+  // Isso garante compatibilidade com diferentes formatos no banco
+  const filter: Filter<Document> = {
+    $or: [
+      { "properties.cod_cpf": normalizedCPF },
+      { "properties.cod_cpf": cpf }, // CPF original (pode estar formatado)
+      // Também buscar por padrões comuns de formatação
+      { "properties.cod_cpf": `${normalizedCPF.slice(0, 3)}.${normalizedCPF.slice(3, 6)}.${normalizedCPF.slice(6, 9)}-${normalizedCPF.slice(9)}` }
+    ]
+  };
+
+  const skip = (page - 1) * limit;
+
+  const [items, total] = await Promise.all([
+    col.find(filter).skip(skip).limit(limit).toArray(),
+    col.countDocuments(filter)
+  ]);
+
+  return {
+    page,
+    limit,
+    total,
+    totalPages: Math.ceil(total / limit),
+    items,
+    cpf: normalizedCPF,
+    cpfFormatado: `${normalizedCPF.slice(0, 3)}.${normalizedCPF.slice(3, 6)}.${normalizedCPF.slice(6, 9)}-${normalizedCPF.slice(9)}`
+  };
 }
 
