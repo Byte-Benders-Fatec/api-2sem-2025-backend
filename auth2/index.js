@@ -12,6 +12,7 @@ const userRoutes = require("./routes/user.routes");
 const documentRoutes = require("./routes/document.routes");
 const authRoutes = require('./routes/auth.routes');
 const userPhotoRoutes = require("./routes/userphoto.routes");
+const userPropertyRoutes = require("./routes/userProperty.routes");
 
 const app = express();
 const API_PORT = process.env.API_PORT || 5000;
@@ -30,6 +31,7 @@ app.use(`${API_PREFIX}/users`, userRoutes);
 app.use(`${API_PREFIX}/documents`, documentRoutes);
 app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(`${API_PREFIX}/userphotos`, userPhotoRoutes);
+app.use(`${API_PREFIX}/user-properties`, userPropertyRoutes);
 
 // Inicializa o Super Admin antes do servidor rodar
 initSuperAdmin()
