@@ -6,6 +6,9 @@ const { authMiddleware } = require("../middlewares/auth.middleware");
 // Todas as rotas requerem autenticação
 router.use(authMiddleware);
 
+// Busca propriedades no serviço mongo pelo CPF do usuário e salva no MySQL
+router.post("/search-by-cpf", userPropertyController.searchByCPF);
+
 // Salva múltiplas propriedades vindas do frontend (nova arquitetura)
 router.post("/bulk-save", userPropertyController.bulkSave);
 

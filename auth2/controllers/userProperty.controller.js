@@ -24,6 +24,82 @@ const userPropertyController = {
     }
   },
 
+  // Busca propriedades no serviço mongo pelo CPF do usuário e salva no MySQL
+  // Esta função apenas coordena: busca no MongoDB e salva no MySQL
+  searchByCPF: async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      const { cpf } = req.body;
+
+      if (!userId) {
+        return res.status(401).json({ 
+          error: "Usuário não autenticado" 
+        });
+      }
+
+      if (!cpf) {
+        return res.status(400).json({ 
+          error: "CPF é obrigatório" 
+        });
+      }
+
+      if (!MONGO_API_KEY) {
+        return res.status(500).json({ 
+          error: "Configuração do servidor incompleta (MONGO_API_KEY não definida)" 
+        });
+      }
+
+      // Busca imóveis no serviço mongo usando a função existente
+      const mongoResponse = await axios.get(
+        `${MONGO_SERVICE_URL}/imoveis/cpf/${cpf}`,
+        {
+          headers: {
+            "x-api-key": MONGO_API_KEY
+          }
+        }
+      );
+
+      const mongoData = mongoResponse.data;
+      const mongoProperties = mongoData.items || mongoData; // Suporta ambos os formatos
+
+      if (!mongoProperties || mongoProperties.length === 0) {
+        return res.status(200).json({ 
+          message: "Nenhuma propriedade encontrada para este CPF",
+          properties: [],
+          total: 0
+        });
+      }
+
+      // Salva as propriedades no MySQL
+      const savedProperties = await userPropertyService.bulkCreateFromMongo(
+        userId,
+        mongoProperties
+      );
+
+      return res.status(200).json({ 
+        message: `${savedProperties.length} propriedade(s) encontrada(s) e salva(s)`,
+        properties: savedProperties,
+        total: savedProperties.length
+      });
+
+    } catch (error) {
+      console.error("Erro ao buscar propriedades por CPF:", error);
+
+      // Tratamento específico para erros do axios
+      if (error.response) {
+        return res.status(error.response.status).json({ 
+          error: "Erro ao buscar propriedades no serviço de imóveis",
+          details: error.response.data
+        });
+      }
+
+      return res.status(500).json({ 
+        error: "Erro ao buscar propriedades por CPF",
+        details: error.message 
+      });
+    }
+  },
+
   // Salva múltiplas propriedades vindas do frontend (nova arquitetura)
   bulkSave: async (req, res) => {
     try {
