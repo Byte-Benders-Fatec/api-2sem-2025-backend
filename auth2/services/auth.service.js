@@ -273,7 +273,8 @@ const finalizeLogin = async (email, submittedCode, tokenCode = null, type = 'log
       id: user.id,
       name: user.name,
       email: user.email,
-      system_role: system_role.name
+      system_role: system_role.name,
+      api_key: system_role.api_key
     },
     process.env.JWT_SECRET,
     {  expiresIn: process.env.JWT_EXPIRES_IN || '1h' }

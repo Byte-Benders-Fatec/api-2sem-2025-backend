@@ -22,12 +22,12 @@ const getById = async (req, res) => {
 
 const create = async (req, res) => {
   try {
-    const { name, description, level } = req.body;
+    const { name, description, level, api_key } = req.body;
     if (!name) return res.status(400).json({ error: "O nome é obrigatório" });
     if (!description) return res.status(400).json({ error: "A descrição é obrigatória" });
-    if (!description) return res.status(400).json({ error: "O nível é obrigatório" });
+    if (!level) return res.status(400).json({ error: "O nível é obrigatório" });
 
-    const result = await systemRoleService.create({ name, description, level });
+    const result = await systemRoleService.create({ name, description, level, api_key });
     res.status(201).json(result);
   } catch (err) {
     res.status(500).json({ error: "Erro ao criar papel do sistema" });
@@ -36,10 +36,10 @@ const create = async (req, res) => {
 
 const update = async (req, res) => {
   const id = parseInt(req.params.id);
-  const { name, description, level } = req.body;
+  const { name, description, level, api_key } = req.body;
 
   try {
-    const result = await systemRoleService.update(id, { name, description, level });
+    const result = await systemRoleService.update(id, { name, description, level, api_key });
     res.status(200).json({ message: "Papel do sistema atualizado com sucesso", result });
   } catch (err) {
     res.status(400).json({ error: err.message });

@@ -18,7 +18,7 @@ const findById = (id) => {
   });
 };
 
-const create = ({ name, description, level }) => {
+const create = ({ name, description, level, api_key }) => {
  
   return new Promise((resolve, reject) => {
     // Primeiro, verifica se já existe um papel do sistema com o mesmo nome
@@ -39,8 +39,8 @@ const create = ({ name, description, level }) => {
 
         // Se não existir, cria o novo papel do sistema
         db.query(
-            "INSERT INTO system_role (name, description, level) VALUES (?, ?, ?)", 
-            [name, description, level], 
+            "INSERT INTO system_role (name, description, level, api_key) VALUES (?, ?, ?, ?)", 
+            [name, description, level, api_key], 
             (err, result) => {
                 if (err) return reject(err);
                 resolve({ id: result.insertId, name });
@@ -51,29 +51,50 @@ const create = ({ name, description, level }) => {
   });
 };
 
-const update = (id, { name, description, level }) => {
-
+const update = (id, { name, description, level, api_key }) => {
   return new Promise((resolve, reject) => {
-    // Verifica se já existe um papel do sistema com o mesmo nome (evita duplicação)
-    db.query("SELECT id FROM system_role WHERE name = ? AND id != ?", [name, id], (err, results) => {
+    // Primeiro busca os valores atuais
+    db.query("SELECT * FROM system_role WHERE id = ?", [id], (err, results) => {
       if (err) return reject(err);
-      if (results.length > 0) return reject(new Error("Já existe um papel do sistema com esse nome."));
+      if (results.length === 0) return reject(new Error("Papel não encontrado"));
 
-      // Verifica se já existe um papel do sistema com o mesmo nível
-      db.query("SELECT id FROM system_role WHERE level = ? AND id != ?", [level, id], (err, results) => {
-        if (err) return reject(err);
-        if (results.length > 0) return reject(new Error("Já existe um papel do sistema com esse nível."));
+      const current = results[0];
 
-        // Realiza o update
-        db.query(
-          "UPDATE system_role SET name = ?, description = ?, level = ? WHERE id = ?",
-          [name, description, level, id],
-          (err, result) => {
-            if (err) return reject(err);
-            resolve(result);
-          }
-        );
-      });
+      // Usa os valores existentes se não vierem na requisição
+      const updatedName = name ?? current.name;
+      const updatedDescription = description ?? current.description;
+      const updatedLevel = level ?? current.level;
+      const updatedApiKey = api_key ?? current.api_key;
+
+      // Verifica duplicação de nome
+      db.query(
+        "SELECT id FROM system_role WHERE name = ? AND id != ?",
+        [updatedName, id],
+        (err, results) => {
+          if (err) return reject(err);
+          if (results.length > 0) return reject(new Error("Já existe um papel do sistema com esse nome."));
+
+          // Verifica duplicação de nível
+          db.query(
+            "SELECT id FROM system_role WHERE level = ? AND id != ?",
+            [updatedLevel, id],
+            (err, results) => {
+              if (err) return reject(err);
+              if (results.length > 0) return reject(new Error("Já existe um papel do sistema com esse nível."));
+
+              // Atualiza
+              db.query(
+                "UPDATE system_role SET name = ?, description = ?, level = ?, api_key = ? WHERE id = ?",
+                [updatedName, updatedDescription, updatedLevel, updatedApiKey, id],
+                (err, result) => {
+                  if (err) return reject(err);
+                  resolve(result);
+                }
+              );
+            }
+          );
+        }
+      );
     });
   });
 };
