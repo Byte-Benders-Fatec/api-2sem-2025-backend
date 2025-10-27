@@ -273,6 +273,7 @@ const finalizeLogin = async (email, submittedCode, tokenCode = null, type = 'log
       id: user.id,
       name: user.name,
       email: user.email,
+      cpf: user.cpf,
       system_role: system_role.name,
       api_key: system_role.api_key,
       scope: 'access'
@@ -487,6 +488,7 @@ const guestLogin = async () => {
       id: user.id,
       name: user.name,
       email: user.email,
+      cpf: user.cpf,
       system_role: system_role.name,
       api_key: system_role.api_key,
       scope: 'access'
