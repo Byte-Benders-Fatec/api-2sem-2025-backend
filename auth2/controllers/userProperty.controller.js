@@ -2,7 +2,6 @@ const userPropertyService = require("../services/userProperty.service");
 const axios = require("axios");
 
 const MONGO_SERVICE_URL = process.env.MONGO_SERVICE_URL || "http://localhost:3001/api/v1";
-const MONGO_API_KEY = process.env.MONGO_API_KEY;
 
 const userPropertyController = {
   // Lista todas as propriedades do usuário logado
@@ -29,6 +28,7 @@ const userPropertyController = {
   searchByCPF: async (req, res) => {
     try {
       const userId = req.user?.id;
+      const mongoApiKey = req.user?.api_key
       const { cpf } = req.body;
 
       if (!userId) {
@@ -43,9 +43,9 @@ const userPropertyController = {
         });
       }
 
-      if (!MONGO_API_KEY) {
+      if (!mongoApiKey) {
         return res.status(500).json({ 
-          error: "Configuração do servidor incompleta (MONGO_API_KEY não definida)" 
+          error: "Não foi possível obter a chave de API do usuário para o serviço de imóveis" 
         });
       }
 
@@ -54,7 +54,7 @@ const userPropertyController = {
         `${MONGO_SERVICE_URL}/imoveis/cpf/${cpf}`,
         {
           headers: {
-            "x-api-key": MONGO_API_KEY
+            "x-api-key": mongoApiKey
           }
         }
       );
@@ -231,6 +231,7 @@ const userPropertyController = {
     try {
       const { id } = req.params;
       const userId = req.user?.id;
+      const mongoApiKey = req.user?.api_key
 
       const property = await userPropertyService.findById(id);
 
@@ -243,9 +244,9 @@ const userPropertyController = {
         return res.status(403).json({ error: "Acesso negado a esta propriedade" });
       }
 
-      if (!MONGO_API_KEY) {
+      if (!mongoApiKey) {
         return res.status(500).json({ 
-          error: "Configuração do servidor incompleta (MONGO_API_KEY não definida)" 
+          error: "Não foi possível obter a chave de API do usuário para o serviço de imóveis" 
         });
       }
 
@@ -254,7 +255,7 @@ const userPropertyController = {
         `${MONGO_SERVICE_URL}/imoveis/${property.mongo_property_id}`,
         {
           headers: {
-            "x-api-key": MONGO_API_KEY
+            "x-api-key": mongoApiKey
           }
         }
       );
