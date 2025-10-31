@@ -7,9 +7,17 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
+    "fix:geometries": "tsx src/scripts/fix-geometries.ts",
+    "fix:kinks": "tsx src/scripts/fix-geometries-kinks.ts",
+    "fix:quarantine": "tsx src/scripts/quarantine-bad-geoms.ts",
     "lint": "eslint . --ext .ts"
   },
   "dependencies": {
+    "@turf/clean-coords": "^7.2.0",
+    "@turf/helpers": "^7.2.0",
+    "@turf/kinks": "^7.2.0",
+    "@turf/rewind": "^7.2.0",
+    "@turf/unkink-polygon": "^7.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",

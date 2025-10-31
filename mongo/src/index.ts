@@ -13,12 +13,12 @@ async function main() {
 
   app.use(corsMiddleware);
   app.use(express.json({ limit: "2mb" }));
-  app.use("/admin/keys", keysRoutes);
-  
+  app.use("/api/v1/admin/keys", keysRoutes);
+
   app.use(requireApiKey);
 
   app.get("/health", (_req, res) => res.json({ ok: true }));
-  app.use("/api/imoveis", imoveisRoutes);
+  app.use("/api/v1/imoveis", imoveisRoutes);
 
   app.use(errorHandler);
 
