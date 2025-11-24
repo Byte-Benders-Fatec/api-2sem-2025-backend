@@ -52,11 +52,31 @@ const userPropertyService = {
 
   // Atualiza uma propriedade
   update: async (id, { displayName, registryNumber }) => {
+    const fields = [];
+    const values = [];
+
+    if (displayName !== undefined) {
+      fields.push('display_name = ?');
+      values.push(displayName);
+    }
+    if (registryNumber !== undefined) {
+      fields.push('registry_number = ?');
+      values.push(registryNumber);
+    }
+
+    // Se nenhum campo foi fornecido para atualização, retorna o objeto atual
+    if (fields.length === 0) {
+      return await userPropertyService.findById(id);
+    }
+
+    // Adiciona o ID para a cláusula WHERE
+    values.push(id);
+
     await queryAsync(
       `UPDATE property 
-       SET display_name = ?, registry_number = ?, updated_at = NOW() 
+       SET ${fields.join(', ')}, updated_at = NOW() 
        WHERE id = ?`,
-      [displayName, registryNumber, id]
+      values
     );
     return await userPropertyService.findById(id);
   },
