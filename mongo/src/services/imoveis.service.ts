@@ -6,6 +6,8 @@ import {
   calculatePolygonCentroid,
   isPointInPolygonWithTolerance
 } from "../utils/geometry.js";
+import area from "@turf/area";
+import length from "@turf/length";
 
 const COLLECTION = process.env.MONGODB_COLLECTION_IMOVEIS || "imoveis_rurais";
 
@@ -51,7 +53,51 @@ export async function listImoveis(opts: {
 
 export async function getImovelById(id: string) {
   const col = getCollection(COLLECTION);
-  return col.findOne({ _id: new (await import("mongodb")).ObjectId(id) });
+  const imovel = await col.findOne({ _id: new (await import("mongodb")).ObjectId(id) });
+
+  if (!imovel) return null;
+
+  // Verifica se precisa calcular área e perímetro
+  const needsArea = !imovel.properties?.area;
+  const needsPerimeter = !imovel.properties?.perimeter;
+  const hasGeometry = imovel.geometry && imovel.geometry.type === 'Polygon' && imovel.geometry.coordinates;
+
+  if ((needsArea || needsPerimeter) && hasGeometry) {
+    const updates: any = {};
+
+    if (needsArea) {
+      // Turf area retorna m². Converter para hectares (/ 10000)
+      const calculatedAreaM2 = area(imovel.geometry);
+      const calculatedAreaHa = calculatedAreaM2 / 10000;
+      updates["properties.area"] = calculatedAreaHa;
+
+      // Atualiza o objeto em memória para retorno
+      if (!imovel.properties) imovel.properties = {};
+      imovel.properties.area = calculatedAreaHa;
+    }
+
+    if (needsPerimeter) {
+      // Turf length retorna km por padrão. Converter para metros (* 1000) para manter padrão
+      // OU usar options { units: 'meters' }
+      const calculatedPerimeterKm = length(imovel.geometry, { units: 'kilometers' });
+      const calculatedPerimeterM = calculatedPerimeterKm * 1000;
+      updates["properties.perimeter"] = calculatedPerimeterM;
+
+      // Atualiza o objeto em memória para retorno
+      if (!imovel.properties) imovel.properties = {};
+      imovel.properties.perimeter = calculatedPerimeterM;
+    }
+
+    // Persiste as atualizações
+    if (Object.keys(updates).length > 0) {
+      await col.updateOne(
+        { _id: imovel._id },
+        { $set: updates }
+      );
+    }
+  }
+
+  return imovel;
 }
 
 export async function createImovel(payload: ImovelInput) {
