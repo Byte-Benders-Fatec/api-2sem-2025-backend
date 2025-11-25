@@ -38,7 +38,9 @@ app.use(`${API_PREFIX}/user-properties`, userPropertyRoutes);
 
 // Certificate Routes
 app.post(`${API_PREFIX}/certificate/generate`, checkToken, certificateController.generate);
+app.get(`${API_PREFIX}/certificate/list`, checkToken, certificateController.listByUser);
 app.get(`${API_PREFIX}/certificate/property/:propertyId`, checkToken, certificateController.getByProperty);
+app.delete(`${API_PREFIX}/certificate/:id`, checkToken, certificateController.revoke);
 
 
 // Inicializa o Super Admin antes do servidor rodar

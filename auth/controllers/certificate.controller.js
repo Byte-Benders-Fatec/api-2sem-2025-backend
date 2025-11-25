@@ -39,7 +39,33 @@ const getByProperty = async (req, res) => {
     }
 };
 
+const listByUser = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const certificates = await certificateService.getCertificatesByUser(userId);
+        res.json(certificates);
+    } catch (error) {
+        console.error('Error listing certificates:', error);
+        res.status(500).json({ error: 'Failed to list certificates' });
+    }
+};
+
+const revoke = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user.id;
+        
+        await certificateService.revokeCertificate(id, userId);
+        res.json({ message: 'Certificate revoked successfully' });
+    } catch (error) {
+        console.error('Error revoking certificate:', error);
+        res.status(500).json({ error: 'Failed to revoke certificate', details: error.message });
+    }
+};
+
 module.exports = {
     generate,
-    getByProperty
+    getByProperty,
+    listByUser,
+    revoke
 };
