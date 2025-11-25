@@ -14,6 +14,9 @@ const authRoutes = require('./routes/auth.routes');
 const userPhotoRoutes = require("./routes/userphoto.routes");
 const userPropertyRoutes = require("./routes/userProperty.routes");
 
+const certificateController = require("./controllers/certificate.controller");
+const { authMiddleware: checkToken } = require("./middlewares/auth.middleware");
+
 const app = express();
 const API_PORT = process.env.API_PORT || 5000;
 const API_PREFIX = process.env.API_PREFIX || "/api/v1";
@@ -32,6 +35,11 @@ app.use(`${API_PREFIX}/documents`, documentRoutes);
 app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(`${API_PREFIX}/userphotos`, userPhotoRoutes);
 app.use(`${API_PREFIX}/user-properties`, userPropertyRoutes);
+
+// Certificate Routes
+app.post(`${API_PREFIX}/certificate/generate`, checkToken, certificateController.generate);
+app.get(`${API_PREFIX}/certificate/property/:propertyId`, checkToken, certificateController.getByProperty);
+
 
 // Inicializa o Super Admin antes do servidor rodar
 initSuperAdmin()
