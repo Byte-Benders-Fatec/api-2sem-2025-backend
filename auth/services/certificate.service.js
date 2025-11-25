@@ -127,6 +127,9 @@ const generateCertificate = async (userData, propertyId, propertyData) => {
 
                 addField('Nome', finalData.display_name);
                 addField('Matrícula', finalData.registry_number);
+                
+                y += 15; // Extra spacing
+
                 addField('Município', finalData.municipio);
                 addField('Estado', finalData.cod_estado);
                 addField('Área', finalData.area);
@@ -171,7 +174,51 @@ const getCertificateByProperty = (propertyId) => {
     });
 };
 
+const getCertificatesByUser = (userId) => {
+    return new Promise((resolve, reject) => {
+        const query = `
+            SELECT c.id, c.number, c.issue_date, c.expiry_date, c.status, 
+                   p.display_name as property_name, p.registry_number,
+                   d.id as document_id
+            FROM certificate c
+            JOIN property p ON c.property_id = p.id
+            JOIN document d ON c.document_id = d.id
+            WHERE p.owner_user_id = ? AND c.status = 'valid'
+            ORDER BY c.issue_date DESC
+        `;
+        db.query(query, [userId], (err, results) => {
+            if (err) return reject(err);
+            resolve(results);
+        });
+    });
+};
+
+const revokeCertificate = (certificateId, userId) => {
+    return new Promise((resolve, reject) => {
+        // First verify ownership via property
+        const verifyQuery = `
+            SELECT c.id 
+            FROM certificate c
+            JOIN property p ON c.property_id = p.id
+            WHERE c.id = ? AND p.owner_user_id = ?
+        `;
+
+        db.query(verifyQuery, [certificateId, userId], (err, results) => {
+            if (err) return reject(err);
+            if (results.length === 0) return reject(new Error("Certificado não encontrado ou permissão negada."));
+
+            const updateQuery = `UPDATE certificate SET status = 'revoked' WHERE id = ?`;
+            db.query(updateQuery, [certificateId], (err) => {
+                if (err) return reject(err);
+                resolve({ success: true });
+            });
+        });
+    });
+};
+
 module.exports = {
     generateCertificate,
-    getCertificateByProperty
+    getCertificateByProperty,
+    getCertificatesByUser,
+    revokeCertificate
 };
