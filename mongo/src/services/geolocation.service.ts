@@ -64,7 +64,7 @@ async function callGoogleGeocodingAPI(
             throw new Error(`Google API retornou status ${response.status}: ${response.statusText}`);
         }
 
-        const data: GoogleGeocodingResponse = await response.json();
+        const data = (await response.json()) as GoogleGeocodingResponse;
 
         if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
             throw new Error(
